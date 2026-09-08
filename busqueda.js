@@ -6,5 +6,5 @@ export function buscar(himnos, consulta) {
   if (!q) return himnos;
   if (/^\d+$/.test(q)) return himnos.filter(h => h.numero === Number(q));
   const palabras = q.split(/\s+/);
-  return himnos.filter(h => palabras.every(p => normalizar(h.tituloOriginal).includes(p)));
+  return himnos.filter(h => palabras.every(p => normalizar(h.titulo ?? h.tituloOriginal).includes(p)));
 }

@@ -1,3 +1,4 @@
+import { himnos } from './datos.js';
 const status = document.querySelector('#offline-status');
 const retry = document.querySelector('#offline-retry');
 const update = document.querySelector('#update-app');
@@ -18,7 +19,7 @@ async function checkCache() {
   channel.port1.onmessage = ({data}) => {
     clearTimeout(timer); channel.port1.close(); showUpdate();
     if (data?.type !== 'CACHE_STATUS') return;
-    status.textContent = data.ready ? '6 himnos listos para usar sin conexión.' : 'La descarga está incompleta. Conéctate y toca Reintentar.';
+    status.textContent = data.ready ? `${himnos.length} himnos listos para usar sin conexión.` : 'La descarga está incompleta. Conéctate y toca Reintentar.';
     retry.hidden = data.ready;
   };
   worker.postMessage({type:'CACHE_STATUS'}, [channel.port2]);

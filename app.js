@@ -45,7 +45,7 @@ function persistir() {
 function recordar(h, ruta) { origen = ruta; posiciones.set(ruta,{y:window.scrollY,numero:h.numero}); }
 function fila(h, ruta) {
   const a = elemento('a','himno'); a.href = `#himno/${h.numero}`;
-  a.append(elemento('span','numero',String(h.numero).padStart(3,'0')),elemento('span','titulo',h.tituloOriginal),icono('flecha'));
+  a.append(elemento('span','numero',String(h.numero).padStart(3,'0')),elemento('span','titulo',h.titulo),icono('flecha'));
   a.addEventListener('click',()=>recordar(h,ruta)); return a;
 }
 function buscador(valor, callback, placeholder = 'Buscar por nombre o número') {
@@ -71,14 +71,14 @@ function inicio(catalogo=false) {
   const status=elemento('p','status');status.setAttribute('role','status');
   const lista=elemento('div','lista');
   const resumen=elemento('div','home-sections');
-  const nota=elemento('p','sample-note','6 letras disponibles en esta muestra.');
+  const nota=elemento('p','sample-note',`${himnos.length} himnos · Consulta local, sin conexión.`);
   function resultados(q) {
     consultas.set(ruta,q); const mostrar=catalogo||q.trim().length>0;
     status.hidden=!mostrar;lista.hidden=!mostrar;resumen.hidden=mostrar;
     const encontrados=buscar(himnos,q);
-    status.textContent=q?`${encontrados.length} ${encontrados.length===1?'resultado':'resultados'}`:'POR NÚMERO · 6 HIMNOS DISPONIBLES';
+    status.textContent=q?`${encontrados.length} ${encontrados.length===1?'resultado':'resultados'}`:`POR NÚMERO · ${himnos.length} HIMNOS`;
     lista.replaceChildren(...encontrados.map(h=>fila(h,ruta)));
-    if(!encontrados.length)lista.append(elemento('p','empty','No encontramos ese himno entre las seis letras disponibles. Puedes consultar sus datos en Categorías.'));
+    if(!encontrados.length)lista.append(elemento('p','empty','No encontramos ese himno. Prueba con otro nombre o número.'));
   }
   for (const [titulo,ids,detalle,ico] of [['Recientes',estado.recientes,'Los últimos cantos que abras estarán aquí.','reloj'],['Favoritos',estado.favoritos,'Guarda los cantos que quieres tener a mano.','estrella']]) {
     const section=elemento('section','collection'); const head=elemento('div','section-head');
@@ -109,20 +109,20 @@ function verCategoria(id) {
   const c=categorias.find(c=>c.id===id);
   const back=elemento('a','back');back.href='#categorias';back.append(icono('volver'),document.createTextNode('Categorías'));app.append(back);
   if(!c){encabezado('Categoría no encontrada');return;}
-  const disponibles=c.entradas.filter(e=>e.estadoVinculo==='coincide' && himnos.some(h=>h.numero===e.numeroIndice)).length;
+  const disponibles=c.entradas.filter(e=>e.estadoVinculo!=='revisar' && himnos.some(h=>h.numero===e.numero)).length;
   encabezado(nombreCategoria(c),`${c.entradas.length} himnos en el índice · ${disponibles} ${disponibles===1?'letra disponible':'letras disponibles'}`,'ÍNDICE POR ASUNTOS');
-  app.append(elemento('p','category-notice','La lista está completa. Las letras pendientes se incorporarán al ampliar el catálogo.'));
+  if (c.entradas.some(e=>e.estadoVinculo==='revisar')) app.append(elemento('p','category-notice','Las referencias con diferencias entre el índice y el himno están señaladas para revisión.'));
   const lista=elemento('div','lista'); const status=elemento('p','status');status.setAttribute('role','status');
   function filtrar(q) {
-    const entradas=c.entradas.filter(e=>/^\d+$/.test(q.trim())?e.numeroIndice===Number(q):normalizar(e.tituloIndice).includes(normalizar(q)));
+    const entradas=c.entradas.filter(e=>/^\d+$/.test(q.trim())?e.numero===Number(q):normalizar(e.tituloIndice).includes(normalizar(q)));
     status.textContent=`${entradas.length} ${entradas.length===1?'himno':'himnos'}`;lista.replaceChildren();
     for(const e of entradas){
-      const h=e.estadoVinculo==='coincide' && himnos.find(h=>h.numero===e.numeroIndice);
+      const h=e.estadoVinculo!=='revisar' && himnos.find(h=>h.numero===e.numero);
       if(h)lista.append(fila(h,`#categoria/${c.id}`));
       else {
         const row=elemento('div','himno pending');const text=elemento('div','row-text');
         text.append(elemento('span','titulo',e.tituloIndice),elemento('span','pending-label',e.estadoVinculo==='revisar'?'Referencia por revisar':'Letra pendiente'));
-        row.append(elemento('span','numero',String(e.numeroIndice).padStart(3,'0')),text);lista.append(row);
+        row.append(elemento('span','numero',String(e.numero).padStart(3,'0')),text);lista.append(row);
       }
     }
     if(!entradas.length)lista.append(elemento('p','empty','No encontramos ese himno en esta categoría.'));
@@ -133,11 +133,11 @@ function lectura(numero) {
   const h=himnos.find(h=>h.numero===numero);
   const tituloOrigen=origen.startsWith('#categoria/')?'Volver a la categoría':origen==='#catalogo'?'Volver al catálogo':'Volver al inicio';
   const volver=elemento('a','back');volver.href=origen;volver.append(icono('volver'),document.createTextNode(tituloOrigen));app.append(volver);
-  if(!h){encabezado('Himno no disponible','Este himno no forma parte de la muestra.');return;}
+  if(!h){encabezado('Himno no disponible','No encontramos este número en el catálogo.');return;}
   estado=abrirReciente(estado,h.id);persistir();
-  app.append(elemento('p','eyebrow',`HIMNO ${String(h.numero).padStart(3,'0')}`),elemento('h1','reading-title',h.tituloOriginal));
+  app.append(elemento('p','eyebrow',`HIMNO ${String(h.numero).padStart(3,'0')}`),elemento('h1','reading-title',h.titulo));
   const tags=elemento('div','category-tags');
-  for(const c of categorias.filter(c=>c.entradas.some(e=>e.estadoVinculo==='coincide'&&e.numeroIndice===h.numero))){const a=elemento('a','category-tag',nombreCategoria(c));a.href=`#categoria/${c.id}`;tags.append(a);}
+  for(const c of categorias.filter(c=>c.entradas.some(e=>e.estadoVinculo!=='revisar'&&e.numero===h.numero))){const a=elemento('a','category-tag',nombreCategoria(c));a.href=`#categoria/${c.id}`;tags.append(a);}
   app.append(tags);
   const controls=elemento('div','reader-controls');const fav=elemento('button','control favorite');fav.type='button';
   function favorito(){const activo=estado.favoritos.includes(h.id);fav.replaceChildren(icono('estrella'),document.createTextNode(activo?'Guardado':'Favorito'));fav.setAttribute('aria-pressed',String(activo));}
@@ -148,10 +148,16 @@ function lectura(numero) {
   function actualizarTamano(){menos.disabled=estado.tamano===0;mas.disabled=estado.tamano===3;sizeStatus.textContent=['Pequeña','Mediana','Grande','Muy grande'][estado.tamano];}
   for(const [button,delta]of[[menos,-1],[mas,1]])button.addEventListener('click',()=>{estado.tamano=Math.max(0,Math.min(3,estado.tamano+delta));persistir();actualizarTamano();});
   actualizarTamano();sizes.append(menos,mas,sizeStatus);controls.append(sizes);app.append(controls);
+  if (h.revisionPendiente) {
+    const note=elemento('details','source-review');note.append(elemento('summary','','Sobre esta transcripción'));
+    note.append(elemento('p','',`Extraída del PDF, páginas ${h.paginasPdf.join(', ')}. Pendiente de cotejo visual completo.`));
+    if (h.incidencias?.length) note.append(elemento('p','',h.incidencias.map(i=>i.detalle || (i.tipo==='palabraPartida'?'Se conserva una palabra partida por un salto de línea.':i.tipo)).filter((v,i,a)=>a.indexOf(v)===i).join(' ')));
+    app.append(note);
+  }
   const article=elemento('article','letra');
   for(const bloque of h.contenido){const section=elemento('section',bloque.tipo);if(bloque.etiquetaOriginal)section.append(elemento('h2','etiqueta',bloque.etiquetaOriginal));section.append(elemento('p','',bloque.lineas.map(l=>l.texto).join('\n')));article.append(section);}
   app.append(article,elemento('p','creditos',h.creditosOriginales));
-  const nav=elemento('nav','pager');nav.setAttribute('aria-label','Navegar por la muestra');const i=himnos.indexOf(h);
+  const nav=elemento('nav','pager');nav.setAttribute('aria-label','Navegar entre himnos');const i=himnos.indexOf(h);
   for(const [otro,label]of[[himnos[i-1],'← Anterior'],[himnos[i+1],'Siguiente →']])if(otro){const a=elemento('a');a.href=`#himno/${otro.numero}`;a.append(elemento('span','pager-label',label),elemento('span','pager-number',`Himno ${String(otro.numero).padStart(3,'0')}`));nav.append(a);}
   app.append(nav);
 }
