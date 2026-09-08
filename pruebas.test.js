@@ -1,0 +1,13 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { buscar } from './busqueda.js';
+import { himnos } from './datos.js';
+test('Los números corregidos identifican himnos distintos',()=>{assert.equal(buscar(himnos,'335')[0].tituloOriginal,'YO ESTOY CONTIGO.');assert.equal(buscar(himnos,'236').length,0);});
+test('Busca número exacto y admite ceros iniciales',()=>{assert.equal(buscar(himnos,'001')[0].numero,1);assert.equal(buscar(himnos,'2').length,1);});
+test('No pierde títulos repetidos y omite acentos al buscar',()=>{assert.deepEqual(buscar(himnos,'aumentame fe').map(h=>h.numero),[21,22]);});
+test('Una búsqueda sin coincidencias devuelve lista vacía',()=>{assert.deepEqual(buscar(himnos,'zzzz'),[]);});
+import { cargar, guardar, abrirReciente, alternarFavorito, validar } from './almacen.js';
+const memoria = () => { let value = null; return {getItem:()=>value,setItem:(k,v)=>{value=v;}}; };
+test('Favoritos y preferencias sobreviven a una nueva lectura',()=>{const m=memoria();let e=alternarFavorito(validar(null),'h335');e.tema='oscuro';e.tamano=3;assert.equal(guardar(m,e),true);assert.deepEqual(cargar(m),e);assert.deepEqual(alternarFavorito(e,'h335').favoritos,[]);});
+test('Recientes únicos, en orden, limitados a quince',()=>{let e=validar(null);for(let i=0;i<20;i++)e=abrirReciente(e,String(i));e=abrirReciente(e,'10');assert.equal(e.recientes.length,15);assert.equal(e.recientes[0],'10');assert.equal(new Set(e.recientes).size,15);});
+test('Datos corruptos y almacenamiento bloqueado no rompen la app',()=>{assert.deepEqual(cargar({getItem:()=>'{'}),validar(null));assert.equal(guardar({setItem:()=>{throw Error();}},validar(null)),false);assert.deepEqual(validar({tema:'otro',tamano:99,recientes:[1,'a','a']}),{tema:'sistema',tamano:1,recientes:['a'],favoritos:[]});});

@@ -1,0 +1,10 @@
+{
+  "name": "himnos",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test pruebas.test.js pwa.test.js",
+    "build": "node preparar-pwa.mjs"
+  }
+}
