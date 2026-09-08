@@ -73,13 +73,13 @@ function enlaceCategoria(c, destacada = false) {
 }
 function inicio(catalogo=false) {
   const ruta=catalogo?'#catalogo':'#'; const consulta=consultas.get(ruta)||'';
-  let orden='numero';
+  let orden='titulo';
   if(catalogo) {
     const hero=elemento('section','catalog-hero');hero.setAttribute('aria-label','Salmo 106:1');
     hero.append(elemento('blockquote','verse','Alabad a Jehová,\nporque él es bueno.'),elemento('p','verse-source','SALMO 106:1'));app.append(hero);
     const heading=elemento('div','catalog-heading');const text=elemento('div');text.append(elemento('h1','page-title','Catálogo'),elemento('p','page-intro','Explora todos los himnos'));
     const sort=elemento('select','catalog-sort');sort.setAttribute('aria-label','Ordenar catálogo');
-    for(const [value,label] of [['numero','Número'],['titulo','Título A–Z']]){const option=elemento('option','',label);option.value=value;sort.append(option);}
+    for(const [value,label] of [['numero','Número'],['titulo','Título A–Z']]){const option=elemento('option','',label);option.value=value;option.selected=value===orden;sort.append(option);}
     sort.addEventListener('change',()=>{orden=sort.value;resultados(consultas.get(ruta)||'');});heading.append(text,sort);app.append(heading);
   }
   else {
@@ -223,7 +223,7 @@ function lectura(numero) {
   for(const [label,value,ico]of[['Título',tituloVisible(h),'catalogo'],['Intérprete / grupo',performer||'No tenemos registro.','estrella'],['Asunto',asuntos||'No tenemos registro.','categorias'],['Tono',tone&&/[a-záéíóú]/i.test(tone)?tone:'No tenemos registro.','ajustes']]){
     const row=elemento('section','info-row');const content=elemento('div');content.append(elemento('h3','',label),elemento('p','',value));row.append(icono(ico),content);dialog.append(row);
   }
-  for(const [label,value]of[['Referencia bíblica',h.referenciaBiblica],['Información adicional',h.informacionAdicional]])if(value){const row=elemento('section','info-row');const content=elemento('div');content.append(elemento('h3','',label),elemento('p','',value));row.append(content);dialog.append(row);}
+  for(const [label,value]of[['Información adicional',h.informacionAdicional]])if(value){const row=elemento('section','info-row');const content=elemento('div');content.append(elemento('h3','',label),elemento('p','',value));row.append(content);dialog.append(row);}
   const original=elemento('details','info-original');original.append(elemento('summary','','Créditos originales'),elemento('p','',credits||'No tenemos registro.'));dialog.append(original);
   const review=app.querySelector('.source-review');if(review)dialog.append(review);
   const report=elemento('a','control whatsapp-contact','Corrección u observación por WhatsApp');
@@ -258,6 +258,7 @@ function render(){
   document.body.classList.toggle('is-home',ruta==='#');
   document.body.classList.toggle('is-catalog',ruta==='#catalogo');
   document.body.classList.toggle('is-categories',ruta==='#categorias');
+  document.body.classList.toggle('is-admin',ruta==='#administracion');
   if(match)lectura(Number(match[1]));else if(cat)verCategoria(cat[1]);else if(ruta==='#favoritos'||ruta==='#recientes')verGuardados(ruta==='#favoritos');else if(ruta==='#categorias')verCategorias();else if(ruta==='#ajustes')ajustes();else if(ruta==='#administracion')administracion(app);else inicio(ruta==='#catalogo');
   const nav=document.querySelector('.bottom-nav');nav.hidden=Boolean(match);
   const active=cat?'#categorias':['#favoritos','#recientes'].includes(ruta)?'#':ruta;

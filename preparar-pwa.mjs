@@ -1,6 +1,6 @@
 import {readFile, writeFile, mkdir, copyFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
-const assets = ['assets/paisaje.webp','index.html','estilos.css','app.js','admin.js','catalogo-modelo.js','catalogo-remoto.js','navegacion.js','datos.js','categorias.js','almacen.js','busqueda.js','pwa.js','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png','icons/maskable-512.png','icons/apple-touch-icon.png'];
+const assets = ['assets/paisaje.webp','index.html','estilos.css','app.js','admin.js','editar-letra.js','catalogo-modelo.js','catalogo-remoto.js','navegacion.js','datos.js','categorias.js','almacen.js','busqueda.js','pwa.js','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png','icons/maskable-512.png','icons/apple-touch-icon.png'];
 const base = new URL('./',import.meta.url);
 const template = await readFile(new URL('sw-template.js',base),'utf8');
 const hash = createHash('sha256').update(template);

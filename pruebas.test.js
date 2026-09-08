@@ -32,3 +32,9 @@ test('La búsqueda de letra se separa del título y prioriza coincidencias exact
  assert.deepEqual(buscar(datos,'postrado de rodilas','letra').map(h=>h.numero),[1]);
  assert.deepEqual(buscar(datos,'POSTRADO, DE RODILLAS','letra').map(h=>h.numero),[1]);
 });
+import {separarLetra,textoCompleto} from './editar-letra.js';
+test('Texto completo conserva versos y repeticiones y reconoce coros',()=>{
+ const bloques=separarLetra('1\r\nPrimer verso\r\nSegundo verso\r\n\r\nCORO:\r\nSe repite\r\nSe repite\r\n\r\n2\r\nÚltimo verso');
+ assert.deepEqual(bloques.map(b=>b.tipo),['estrofa','coro','estrofa']);assert.equal(bloques[1].lineas.length,2);assert.equal(bloques[1].lineas[0].texto,bloques[1].lineas[1].texto);assert.deepEqual(separarLetra(textoCompleto(bloques)),bloques);
+ assert.throws(()=>separarLetra('Coro'));assert.equal(separarLetra('Coro de ángeles cantan')[0].lineas[0].texto,'Coro de ángeles cantan');
+});
