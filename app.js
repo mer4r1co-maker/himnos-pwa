@@ -17,7 +17,7 @@ const iconos = {
   buscar: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>',
   reloj: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   estrella: '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9z"/>',
-  flecha: '<path d="M5 12h14m-5-5 5 5-5 5"/>',
+  flecha: '<path d="m9 5 7 7-7 7"/>',
   volver: '<path d="M19 12H5m5-5-5 5 5 5"/>'
 };
 function elemento(tag, clase, texto) {
@@ -45,7 +45,9 @@ function persistir() {
 function recordar(h, ruta) { origen = ruta; posiciones.set(ruta,{y:window.scrollY,numero:h.numero}); }
 function fila(h, ruta) {
   const a = elemento('a','himno'); a.href = `#himno/${h.numero}`;
-  a.append(elemento('span','numero',String(h.numero).padStart(3,'0')),elemento('span','titulo',h.titulo),icono('flecha'));
+  a.append(elemento('span','numero',String(h.numero).padStart(3,'0')),elemento('span','titulo',h.titulo));
+  if(estado.favoritos.includes(h.id)){const star=icono('estrella');star.classList.add('saved-star');a.append(star);}
+  a.append(icono('flecha'));
   a.addEventListener('click',()=>recordar(h,ruta)); return a;
 }
 function buscador(valor, callback, placeholder = 'Buscar por nombre o número') {
@@ -67,7 +69,12 @@ function enlaceCategoria(c, destacada = false) {
 }
 function inicio(catalogo=false) {
   const ruta=catalogo?'#catalogo':'#'; const consulta=consultas.get(ruta)||'';
-  encabezado(catalogo?'Todos los himnos':'Tu himnario, siempre cerca.',catalogo?'Encuentra cada canto por su nombre o número.':null,catalogo?'CATÁLOGO':'UN MOMENTO PARA CANTAR');
+  if(catalogo) encabezado('Todos los himnos','Encuentra cada canto por su nombre o número.','CATÁLOGO');
+  else {
+    app.append(elemento('h1','sr-only','Himnos'));
+    const hero=elemento('section','home-hero');hero.setAttribute('aria-label','Versículo del día');
+    hero.append(elemento('blockquote','verse','Alabad a Jehová,\nporque él es bueno;\nporque para siempre\nes su misericordia.'),elemento('p','verse-source','SALMO 106:1'));app.append(hero);
+  }
   const status=elemento('p','status');status.setAttribute('role','status');
   const lista=elemento('div','lista');
   const resumen=elemento('div','home-sections');
@@ -80,19 +87,27 @@ function inicio(catalogo=false) {
     lista.replaceChildren(...encontrados.map(h=>fila(h,ruta)));
     if(!encontrados.length)lista.append(elemento('p','empty','No encontramos ese himno. Prueba con otro nombre o número.'));
   }
-  for (const [titulo,ids,detalle,ico] of [['Recientes',estado.recientes,'Los últimos cantos que abras estarán aquí.','reloj'],['Favoritos',estado.favoritos,'Guarda los cantos que quieres tener a mano.','estrella']]) {
+  for (const [titulo,ids,detalle,ico] of [['Favoritos',estado.favoritos,'Guarda los cantos que quieres tener a mano.','estrella'],['Recientes',estado.recientes,'Los últimos cantos que abras estarán aquí.','reloj']]) {
     const section=elemento('section','collection'); const head=elemento('div','section-head');
     const name=elemento('h2');name.append(icono(ico),document.createTextNode(titulo));head.append(name);
     const items=ids.map(id=>himnos.find(h=>h.id===id)).filter(Boolean);
-    head.append(elemento('span','section-count',String(items.length).padStart(2,'0')));section.append(head);
+    const all=elemento('a','text-link','Ver todos');all.href=titulo==='Favoritos'?'#favoritos':'#recientes';all.append(icono('flecha'));head.append(all);section.append(head);
     if(!items.length)section.append(elemento('p','empty',detalle));
-    else {const list=elemento('div','lista compact');list.append(...items.map(h=>fila(h,ruta)));section.append(list);}
+    else {const list=elemento('div','lista compact');list.append(...items.slice(0,3).map(h=>fila(h,ruta)));section.append(list);}
     resumen.append(section);
   }
-  const categoryHeading=elemento('div','section-head');categoryHeading.append(elemento('h2','','Por categoría'));
-  const todas=elemento('a','text-link','Ver todas');todas.href='#categorias';categoryHeading.append(todas);resumen.append(categoryHeading);
-  resumen.append(enlaceCategoria(categorias.find(c=>c.id==='evangelismo'),true));
-  app.append(buscador(consulta,resultados),status,lista,resumen,nota); resultados(consulta);
+  const search=buscador(consulta,resultados);
+  if(!catalogo){const filter=elemento('a','search-filter');filter.href='#categorias';filter.setAttribute('aria-label','Explorar categorías');filter.append(icono('ajustes'));search.classList.add('with-filter');search.append(filter);}
+  app.append(search);
+  if(!catalogo){const chips=elemento('nav','category-chips');chips.setAttribute('aria-label','Categorías destacadas');const all=elemento('a','chip selected','Todos');all.href='#catalogo';chips.append(all);for(const id of ['alabanza','oracion','evangelismo','pascua']){const c=categorias.find(c=>c.id===id);if(c){const chip=elemento('a','chip',nombreCategoria(c));chip.href=`#categoria/${c.id}`;chips.append(chip);}}app.append(chips);}
+  app.append(status,lista,resumen,nota); resultados(consulta);
+}
+function verGuardados(favoritos){
+  const ruta=favoritos?'#favoritos':'#recientes';
+  encabezado(favoritos?'Favoritos':'Recientes',favoritos?'Tus cantos, siempre a mano.':'Los últimos himnos que abriste.','TU HIMNARIO');
+  const items=(favoritos?estado.favoritos:estado.recientes).map(id=>himnos.find(h=>h.id===id)).filter(Boolean);
+  const list=elemento('div','lista');list.append(...items.map(h=>fila(h,ruta)));
+  if(!items.length)list.append(elemento('p','empty',favoritos?'Todavía no has guardado favoritos.':'Los himnos que abras aparecerán aquí.'));app.append(list);
 }
 function verCategorias() {
   encabezado('Un canto para cada ocasión.','Explora los 37 asuntos del índice original.','CATEGORÍAS');
@@ -131,7 +146,7 @@ function verCategoria(id) {
 }
 function lectura(numero) {
   const h=himnos.find(h=>h.numero===numero);
-  const tituloOrigen=origen.startsWith('#categoria/')?'Volver a la categoría':origen==='#catalogo'?'Volver al catálogo':'Volver al inicio';
+  const tituloOrigen=origen.startsWith('#categoria/')?'Volver a la categoría':origen==='#catalogo'?'Volver al catálogo':origen==='#favoritos'?'Volver a favoritos':origen==='#recientes'?'Volver a recientes':'Volver al inicio';
   const volver=elemento('a','back');volver.href=origen;volver.append(icono('volver'),document.createTextNode(tituloOrigen));app.append(volver);
   if(!h){encabezado('Himno no disponible','No encontramos este número en el catálogo.');return;}
   estado=abrirReciente(estado,h.id);persistir();
@@ -172,9 +187,10 @@ function ajustes(){
 function render(){
   const ruta=location.hash||'#';const match=/^#himno\/(\d+)$/.exec(ruta);const cat=/^#categoria\/([a-z-]+)$/.exec(ruta);
   app.replaceChildren();document.body.classList.toggle('is-reading',Boolean(match));
-  if(match)lectura(Number(match[1]));else if(cat)verCategoria(cat[1]);else if(ruta==='#categorias')verCategorias();else if(ruta==='#ajustes')ajustes();else inicio(ruta==='#catalogo');
+  document.body.classList.toggle('is-home',ruta==='#');
+  if(match)lectura(Number(match[1]));else if(cat)verCategoria(cat[1]);else if(ruta==='#favoritos'||ruta==='#recientes')verGuardados(ruta==='#favoritos');else if(ruta==='#categorias')verCategorias();else if(ruta==='#ajustes')ajustes();else inicio(ruta==='#catalogo');
   const nav=document.querySelector('.bottom-nav');nav.hidden=Boolean(match);
-  const active=cat?'#categorias':ruta;
+  const active=cat?'#categorias':['#favoritos','#recientes'].includes(ruta)?'#':ruta;
   for(const link of nav.querySelectorAll('a')){if(link.getAttribute('href')===active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');}
   const heading=app.querySelector('h1');heading.tabIndex=-1;heading.focus({preventScroll:true});document.title=`${heading.textContent} · Himnos`;
   const posicion=!match&&posiciones.get(ruta);const focused=posicion&&app.querySelector(`a[href="#himno/${posicion.numero}"]`);
