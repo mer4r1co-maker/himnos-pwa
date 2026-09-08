@@ -17,3 +17,18 @@ test('El índice incluye 37 categorías y las 25 referencias de Evangelismo',()=
 test('No vincular números contradictorios del índice sin revisión',()=>{assert.equal(categorias.find(c=>c.id==='resurreccion').entradas[0].numero,38);assert.equal(categorias.find(c=>c.id==='resurreccion').entradas[0].estadoVinculo,'autorizado');assert.equal(categorias.find(c=>c.id==='testimonio').entradas[0].estadoVinculo,'autorizado');assert.equal(categorias.find(c=>c.id==='testimonio').entradas[0].numero,76);assert.ok(categorias.find(c=>c.id==='evangelismo').entradas.some(e=>e.numero===73));assert.equal(himnos.find(h=>h.numero===76).titulo,'CUANDO CRISTO LLEGO A MI VIDA.');});
 test('Correcciones autorizadas del índice conservan el himno destino',()=>{const esperanza=categorias.find(c=>c.id==='esperanza').entradas.find(e=>e.tituloIndice==='QUE DICHA SERÁ.');assert.equal(esperanza.numero,266);assert.equal(himnos.find(h=>h.numero===266).titulo,'QUE DICHA SERÁ.');assert.equal(himnos.find(h=>h.numero===226).titulo,'MISIONERO QUE ANUNCIAS.');const emmaus=categorias.find(c=>c.id==='resurreccion').entradas[0];assert.equal(emmaus.numero,38);assert.equal(himnos.find(h=>h.numero===38).titulo,'CAMINO A EMMAUS.');assert.equal(himnos.find(h=>h.numero===3).titulo,'A DONDE IRÉ.');});
 test('Evangelismo enlaza las 25 referencias autorizadas',()=>{const c=categorias.find(c=>c.id==='evangelismo');assert.equal(c.entradas.filter(e=>e.estadoVinculo!=='revisar'&&himnos.some(h=>h.numero===e.numero)).length,25);assert.equal(buscar(himnos,'SI VINIERES')[0].numero,298);assert.equal(himnos.find(h=>h.numero===31).titulo,'BENITO CORDERO DE DIOS.');});
+import { vecinos } from './navegacion.js';
+test('Anterior y siguiente permanecen dentro de cada categoría y respetan sus límites',()=>{
+  for(const c of categorias){
+    const numeros=[...new Set(c.entradas.filter(e=>e.estadoVinculo!=='revisar'&&himnos.some(h=>h.numero===e.numero)).map(e=>e.numero))];
+    numeros.forEach((n,i)=>{const v=vecinos(himnos,categorias,n,`#categoria/${c.id}`);assert.equal(v.anterior?.numero,numeros[i-1]);assert.equal(v.siguiente?.numero,numeros[i+1]);});
+  }
+});
+test('El catálogo conserva la navegación general por número',()=>{const v=vecinos(himnos,categorias,266,'#catalogo');assert.equal(v.anterior.numero,265);assert.equal(v.siguiente.numero,267);});
+test('Búsqueda tolera errores e intercambios sin confundir números',()=>{assert.ok(buscar(himnos,'aumetname fe').some(h=>h.numero===21));assert.deepEqual(buscar(himnos,'0266').map(h=>h.numero),[266]);});
+test('La búsqueda de letra se separa del título y prioriza coincidencias exactas',()=>{
+ const datos=[{numero:1,titulo:'Esperanza',contenido:[{lineas:[{texto:'postrado de rodillas'}]}]},{numero:2,titulo:'Postrado de rodillas',contenido:[{lineas:[{texto:'otra canción'}]}]}];
+ assert.deepEqual(buscar(datos,'postrado rodillas').map(h=>h.numero),[2]);
+ assert.deepEqual(buscar(datos,'postrado de rodilas','letra').map(h=>h.numero),[1]);
+ assert.deepEqual(buscar(datos,'POSTRADO, DE RODILLAS','letra').map(h=>h.numero),[1]);
+});

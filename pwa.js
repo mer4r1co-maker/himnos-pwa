@@ -1,4 +1,4 @@
-import { himnos } from './datos.js';
+import { himnos } from './catalogo-remoto.js';
 const status = document.querySelector('#offline-status');
 const retry = document.querySelector('#offline-retry');
 const update = document.querySelector('#update-app');
@@ -82,3 +82,4 @@ install.addEventListener('click', async () => {
 window.addEventListener('appinstalled', () => { install.hidden = true; });
 window.addEventListener('online', checkCache);
 register();
+

@@ -1,5 +1,7 @@
-import { himnos } from './datos.js';
-import { categorias } from './categorias.js';
+import { himnos, categorias, iniciarCatalogo, sincronizar } from './catalogo-remoto.js';
+import { administracion } from './admin.js';
+import { vecinos } from './navegacion.js';
+
 import { buscar, normalizar } from './busqueda.js';
 import { cargar, guardar, abrirReciente, alternarFavorito } from './almacen.js';
 let storage; try { storage = window.localStorage; } catch {}
@@ -9,6 +11,7 @@ const media = matchMedia('(prefers-color-scheme: dark)');
 const consultas = new Map();
 const posiciones = new Map();
 let origen = '#';
+let modoBusqueda = 'titulo';
 const iconos = {
   inicio: '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
   catalogo: '<rect x="5" y="3" width="15" height="18" rx="2"/><path d="M5 17h15M9 7h7M9 11h5M3 6h2M3 10h2M3 14h2"/>',
@@ -91,8 +94,8 @@ function inicio(catalogo=false) {
   function resultados(q) {
     consultas.set(ruta,q); const mostrar=catalogo||q.trim().length>0;
     status.hidden=!mostrar;lista.hidden=!mostrar;resumen.hidden=mostrar;
-    const encontrados=[...buscar(himnos,q)];
-    if(catalogo&&orden==='titulo')encontrados.sort((a,b)=>a.titulo.localeCompare(b.titulo,'es')||a.numero-b.numero);
+    const encontrados=[...buscar(himnos,q,modoBusqueda)];
+    if(catalogo&&orden==='titulo'&&!q.trim())encontrados.sort((a,b)=>a.titulo.localeCompare(b.titulo,'es')||a.numero-b.numero);
     status.textContent=q?`${encontrados.length} ${encontrados.length===1?'resultado':'resultados'}`:`${catalogo&&orden==='titulo'?'POR TÍTULO':'POR NÚMERO'} · ${himnos.length} HIMNOS`;
     lista.replaceChildren(...encontrados.map(h=>{
       if(!catalogo)return fila(h,ruta);
@@ -101,7 +104,7 @@ function inicio(catalogo=false) {
       function actualizar(){const saved=estado.favoritos.includes(h.id);fav.setAttribute('aria-pressed',String(saved));fav.setAttribute('aria-label',`${saved?'Quitar de':'Añadir a'} favoritos: ${tituloVisible(h)}`);}
       fav.addEventListener('click',()=>{estado=alternarFavorito(estado,h.id);persistir();actualizar();});actualizar();row.append(link,fav);return row;
     }));
-    if(!encontrados.length)lista.append(elemento('p','empty','No encontramos ese himno. Prueba con otro nombre o número.'));
+    if(!encontrados.length)lista.append(elemento('p','empty',modoBusqueda==='letra'?'No encontramos coincidencias. Prueba con unas pocas palabras de la letra.':'No encontramos ese himno. Prueba con otro nombre o número.'));
   }
   for (const [titulo,ids,detalle,ico] of [['Favoritos',estado.favoritos,'Guarda los cantos que quieres tener a mano.','estrella'],['Recientes',estado.recientes,'Los últimos cantos que abras estarán aquí.','reloj']]) {
     const section=elemento('section','collection'); const head=elemento('div','section-head');
@@ -113,7 +116,14 @@ function inicio(catalogo=false) {
     resumen.append(section);
   }
   const search=buscador(consulta,resultados);
-  if(!catalogo){const filter=elemento('a','search-filter');filter.href='#categorias';filter.setAttribute('aria-label','Explorar categorías');filter.append(icono('ajustes'));search.classList.add('with-filter');search.append(filter);}
+  const filter=elemento('button','search-filter');filter.type='button';filter.setAttribute('aria-label','Tipo de búsqueda');filter.setAttribute('aria-haspopup','dialog');filter.append(icono('ajustes'));search.classList.add('with-filter');search.append(filter);
+  const dialog=elemento('dialog','hymn-info');dialog.setAttribute('aria-labelledby','search-mode-title');const title=elemento('h2','','Tipo de búsqueda');title.id='search-mode-title';dialog.append(title);
+  function actualizarModo(){const label=modoBusqueda==='letra'?'Buscar por parte de la letra':'Buscar por nombre o número';search.querySelector('input').placeholder=label;search.querySelector('label').textContent=label;filter.setAttribute('aria-label',`Tipo de búsqueda: ${label}`);}
+  for(const [value,label]of[['titulo','Buscar por nombre o número'],['letra','Buscar por parte de la letra']]){
+    const option=elemento('label','setting-option');const radio=elemento('input');radio.type='radio';radio.name='modo-busqueda';radio.value=value;radio.checked=modoBusqueda===value;
+    radio.addEventListener('change',()=>{modoBusqueda=value;actualizarModo();resultados(search.querySelector('input').value);dialog.close();search.querySelector('input').focus();});option.append(radio,elemento('span','',label));dialog.append(option);
+  }
+  const close=elemento('button','control','Cerrar');close.type='button';close.addEventListener('click',()=>dialog.close());dialog.append(close);filter.addEventListener('click',()=>dialog.showModal());app.append(dialog);actualizarModo();
   app.append(search);
   {const chips=elemento('nav','category-chips');chips.setAttribute('aria-label','Categorías destacadas');const all=elemento('a','chip selected','Todos');all.href='#catalogo';chips.append(all);for(const id of ['alabanza','oracion','evangelismo','pascua']){const c=categorias.find(c=>c.id===id);if(c){const chip=elemento('a','chip',nombreCategoria(c));chip.href=`#categoria/${c.id}`;chips.append(chip);}}app.append(chips);}
   app.append(status,lista,resumen,nota); resultados(consulta);
@@ -196,22 +206,29 @@ function lectura(numero) {
     section.append(elemento('p','',bloque.lineas.map(l=>l.texto).join('\n')));article.append(section);
   }
   app.append(article);
-  const nav=elemento('nav','pager');nav.setAttribute('aria-label','Navegar entre himnos');const i=himnos.indexOf(h);
-  for(const [otro,label]of[[himnos[i-1],'← Anterior'],[himnos[i+1],'Siguiente →']])if(otro){const a=elemento('a');a.href=`#himno/${otro.numero}`;a.append(elemento('span','pager-label',label),elemento('span','pager-number',`Himno ${String(otro.numero).padStart(3,'0')}`));nav.append(a);}
+  const nav=elemento('nav','pager');nav.setAttribute('aria-label','Navegar entre himnos');const vecinosActuales=vecinos(himnos,categorias,h.numero,origen);
+  for(const [otro,label]of[[vecinosActuales.anterior,'← Anterior'],[vecinosActuales.siguiente,'Siguiente →']])if(otro){const a=elemento('a');a.href=`#himno/${otro.numero}`;a.append(elemento('span','pager-label',label),elemento('span','pager-number',`Himno ${String(otro.numero).padStart(3,'0')}`));nav.append(a);}
   const paper=elemento('div','hymn-paper');
   paper.append(app.querySelector('.eyebrow'),app.querySelector('.reading-title'),sizes,article);
   controls.remove();app.append(paper);
-  const dialog=elemento('dialog','hymn-info');dialog.setAttribute('aria-labelledby','info-title');
+  const dialog=elemento('dialog','hymn-info hymn-sheet');dialog.setAttribute('aria-labelledby','info-title');
   const close=elemento('button','control','Cerrar');close.type='button';close.addEventListener('click',()=>dialog.close());
-  dialog.append(elemento('h2','','Información del himno'));dialog.querySelector('h2').id='info-title';
+  dialog.append(elemento('h2','','Información'));dialog.querySelector('h2').id='info-title';
+  const dismiss=elemento('button','sheet-dismiss','×');dismiss.type='button';dismiss.setAttribute('aria-label','Cerrar información');dismiss.addEventListener('click',()=>dialog.close());dialog.append(dismiss);
   const credits=h.creditosOriginales?.trim()||'';
-  const performer=credits.split(/\b(?:Vol\.|Tono\b)/i)[0].trim();
-  const tone=credits.match(/\bTono\s*[.:]?\s*(.*)$/i)?.[1]?.trim();
-  dialog.append(elemento('h3','','Intérprete / grupo'),elemento('p','',performer||'No tenemos registro.'),elemento('h3','','Tono'),elemento('p','',tone&&/[a-záéíóú]/i.test(tone)?tone:'No tenemos registro.'));
-  dialog.append(elemento('h3','','Créditos originales'),elemento('p','',credits||'No tenemos registro.'),tags);
+  const performer=h.autor ?? credits.split(/\b(?:Vol\.|Tono\b)/i)[0].trim();
+  const tone=h.tono ?? credits.match(/\bTono\s*[.:]?\s*(.*)$/i)?.[1]?.trim();
+  const asuntos=[...tags.querySelectorAll('a')].map(a=>a.textContent).join(', ');
+  tags.remove();
+  for(const [label,value,ico]of[['Título',tituloVisible(h),'catalogo'],['Intérprete / grupo',performer||'No tenemos registro.','estrella'],['Asunto',asuntos||'No tenemos registro.','categorias'],['Tono',tone&&/[a-záéíóú]/i.test(tone)?tone:'No tenemos registro.','ajustes']]){
+    const row=elemento('section','info-row');const content=elemento('div');content.append(elemento('h3','',label),elemento('p','',value));row.append(icono(ico),content);dialog.append(row);
+  }
+  for(const [label,value]of[['Referencia bíblica',h.referenciaBiblica],['Información adicional',h.informacionAdicional]])if(value){const row=elemento('section','info-row');const content=elemento('div');content.append(elemento('h3','',label),elemento('p','',value));row.append(content);dialog.append(row);}
+  const original=elemento('details','info-original');original.append(elemento('summary','','Créditos originales'),elemento('p','',credits||'No tenemos registro.'));dialog.append(original);
   const review=app.querySelector('.source-review');if(review)dialog.append(review);
-  const report=elemento('button','control','Reportar himno por WhatsApp · Próximamente');report.type='button';report.disabled=true;
-  dialog.append(elemento('h3','','Reportar un himno'),elemento('p','','Aquí podrás avisarnos si encuentras algún detalle. El contacto por WhatsApp estará disponible próximamente.'),report,close);
+  const report=elemento('a','control whatsapp-contact','Corrección u observación por WhatsApp');
+  report.href=`https://wa.me/524981191652?text=${encodeURIComponent(`Hola, tengo una corrección u observación sobre el himno ${h.numero}: ${tituloVisible(h)}.\n\n`)}`;report.target='_blank';report.rel='noopener noreferrer';
+  dialog.append(report,close);
   const info=elemento('button','reader-action','ⓘ');info.type='button';info.append(elemento('span','','Información'));info.addEventListener('click',()=>dialog.showModal());
   const share=elemento('button','reader-action','↗');share.type='button';share.append(elemento('span','','Compartir'));
   const shareStatus=elemento('p','sr-only');shareStatus.setAttribute('role','status');
@@ -225,6 +242,7 @@ function lectura(numero) {
   app.append(nav,dialog,shareStatus);
 }
 function ajustes(){
+  const adminLink=elemento('a','control','Administración');adminLink.href='#administracion';app.append(adminLink);
   encabezado('A tu manera.','Elige cómo quieres leer tus himnos.','AJUSTES');
   for(const[campo,titulo,opciones]of[['tema','Apariencia',[['sistema','Usar la del sistema'],['claro','Claro'],['oscuro','Oscuro']]],['tamano','Tamaño de letra',[[0,'Pequeña'],[1,'Mediana'],[2,'Grande'],[3,'Muy grande']]]]){
     const field=elemento('fieldset','settings-group');field.append(elemento('legend','',titulo));
@@ -233,12 +251,14 @@ function ajustes(){
   app.append(elemento('p','letra preview-text','Vista previa del tamaño de letra.'),elemento('p','sample-note','Tus favoritos y ajustes se guardan en este navegador.'));
 }
 function render(){
+  document.querySelector('.badge').textContent=himnos.length+' himnos';
+  document.querySelector('footer>p:last-child').textContent=himnos.length+' himnos · '+categorias.length+' categorías';
   const ruta=location.hash||'#';const match=/^#himno\/(\d+)$/.exec(ruta);const cat=/^#categoria\/([a-z-]+)$/.exec(ruta);
   app.replaceChildren();document.body.classList.toggle('is-reading',Boolean(match));
   document.body.classList.toggle('is-home',ruta==='#');
   document.body.classList.toggle('is-catalog',ruta==='#catalogo');
   document.body.classList.toggle('is-categories',ruta==='#categorias');
-  if(match)lectura(Number(match[1]));else if(cat)verCategoria(cat[1]);else if(ruta==='#favoritos'||ruta==='#recientes')verGuardados(ruta==='#favoritos');else if(ruta==='#categorias')verCategorias();else if(ruta==='#ajustes')ajustes();else inicio(ruta==='#catalogo');
+  if(match)lectura(Number(match[1]));else if(cat)verCategoria(cat[1]);else if(ruta==='#favoritos'||ruta==='#recientes')verGuardados(ruta==='#favoritos');else if(ruta==='#categorias')verCategorias();else if(ruta==='#ajustes')ajustes();else if(ruta==='#administracion')administracion(app);else inicio(ruta==='#catalogo');
   const nav=document.querySelector('.bottom-nav');nav.hidden=Boolean(match);
   const active=cat?'#categorias':['#favoritos','#recientes'].includes(ruta)?'#':ruta;
   for(const link of nav.querySelectorAll('a')){if(link.getAttribute('href')===active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');}
@@ -247,6 +267,11 @@ function render(){
   if(focused){focused.focus({preventScroll:true});window.scrollTo(0,posicion.y);}else window.scrollTo(0,0);
 }
 for(const link of document.querySelectorAll('.bottom-nav a')){const label=link.textContent;link.replaceChildren(icono(link.dataset.icon),elemento('span','',label));}
+await iniciarCatalogo();
 media.addEventListener('change',apariencia);apariencia();addEventListener('hashchange',render);render();
+async function refrescarCatalogo(){if(location.hash==='#administracion')return;try{await sincronizar();if(location.hash!=='#administracion'&&!location.hash.startsWith('#himno/'))render();}catch{}}
+refrescarCatalogo();addEventListener('online',refrescarCatalogo);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refrescarCatalogo();});
+
+
 
 
